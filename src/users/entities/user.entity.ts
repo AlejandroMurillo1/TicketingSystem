@@ -1,4 +1,13 @@
-import {BeforeInsert, BeforeUpdate, Column, Entity, JoinTable, ManyToMany, PrimaryGeneratedColumn} from "typeorm";
+import {
+    BeforeInsert,
+    BeforeUpdate,
+    Column,
+    CreateDateColumn,
+    Entity,
+    JoinTable,
+    ManyToMany,
+    PrimaryGeneratedColumn
+} from "typeorm";
 import {Role} from "../../roles/entities/role.entity";
 import {Exclude} from "class-transformer";
 
@@ -7,17 +16,17 @@ export class User {
     @PrimaryGeneratedColumn('uuid')
     id:string;
 
-    @Column('string', { nullable: false, unique:true})
-    email:string;
+    @Column({ nullable: false, unique: true })
+    email: string;
 
-    @Column('string', {nullable:false})
+    @Column( {nullable:false})
     @Exclude()
     password?:string;
 
-    @Column('string', { nullable:false})
+    @Column({ nullable:false})
     fullName:string;
 
-    @Column('datetime', { nullable:false})
+    @CreateDateColumn()
     createdAt:Date;
 
     @ManyToMany(() => Role, (role) => role.users)

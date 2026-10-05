@@ -3,12 +3,12 @@ import {User} from "../../users/entities/user.entity";
 
 @Entity('Roles')
 export class Role {
-    @PrimaryGeneratedColumn('uuid')
-    id: string;
+    @PrimaryGeneratedColumn('identity')
+    id: number;
 
     @Column('string', { nullable: false, unique:true})
     name:string;
 
     @ManyToMany(() => User, (user) => user.roles)
-    users: User[];
+    users?: User[];
 }
