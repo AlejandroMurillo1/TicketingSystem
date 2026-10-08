@@ -1,4 +1,4 @@
-import {Contains, IsInt, IsNotEmpty, IsNumber, IsOptional, IsPositive, IsString, Min} from "class-validator";
+import {IsInt, IsNotEmpty,IsOptional,IsString, Min} from "class-validator";
 
 export class CreateMovie {
     @IsString()
