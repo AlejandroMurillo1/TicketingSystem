@@ -1,8 +1,13 @@
 import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { SeatHold } from './entities/seat-hold.entity';
 import { SeatHoldsService } from './seat-holds.service';
-import { SeatHoldsGateway } from './seat-holds.gateway';
+import { SeatHoldsController } from './seat-holds.controller';
 
 @Module({
-  providers: [SeatHoldsGateway, SeatHoldsService],
+  imports: [TypeOrmModule.forFeature([SeatHold])],
+  controllers: [SeatHoldsController],
+  providers: [SeatHoldsService],
+  exports: [SeatHoldsService],
 })
 export class SeatHoldsModule {}

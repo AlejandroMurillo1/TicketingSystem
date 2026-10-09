@@ -1,43 +1,22 @@
-import {
-    BeforeInsert,
-    BeforeUpdate,
-    Column,
-    CreateDateColumn,
-    Entity,
-    JoinTable,
-    ManyToMany,
-    PrimaryGeneratedColumn
-} from "typeorm";
-import {Role} from "../../roles/entities/role.entity";
-import {Exclude} from "class-transformer";
+import { Column, Entity, JoinTable, ManyToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { Role } from '../../roles/entities/role.entity';
 
-@Entity('Users')
+@Entity('users')
 export class User {
-    @PrimaryGeneratedColumn('uuid')
-    id:string;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
-    @Column({ nullable: false, unique: true })
-    email: string;
+  @Column({ unique: true })
+  email: string;
 
-    @Column( {nullable:false})
-    @Exclude()
-    password?:string;
+  @ManyToMany(() => Role, (role) => role.users)
+  @JoinTable({
+    name: 'user_roles',
+    joinColumn: { name: 'user_id', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'role_id', referencedColumnName: 'id' },
+  })
+  roles: Role[];
 
-    @Column({ nullable:false})
-    fullName:string;
-
-    @CreateDateColumn()
-    createdAt:Date;
-
-    @ManyToMany(() => Role, (role) => role.users)
-    @JoinTable({name: 'user_role'})
-    roles: Role[];
-
-    @BeforeInsert()
-    @BeforeUpdate()
-    checkEmailBeforeChanges(){
-        this.email = this.email
-            .toLowerCase()
-            .trim();
-    }
+  @Column()
+  password?: string;
 }
