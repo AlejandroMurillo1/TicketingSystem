@@ -13,6 +13,8 @@ yarn-error.log*
 /dist
 /coverage
 .env
+.env.*
+!.env.example
 
 # Real prod credentials, never commit
 postman/*.local.postman_environment.json
