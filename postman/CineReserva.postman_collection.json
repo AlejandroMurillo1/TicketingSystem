@@ -539,6 +539,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "// RFC 6238 TOTP (SHA1, 6 digits, 30s) computed from the secret saved by 'Generate 2FA secret'.",
+                  "const hmacLib = require('crypto-js');",
                   "const secret = pm.collectionVariables.get('twoFactorSecret') || '';",
                   "const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';",
                   "let bits = '';",
@@ -549,7 +550,7 @@
                   "let keyHex = '';",
                   "for (let i = 0; i + 8 <= bits.length; i += 8) keyHex += parseInt(bits.substr(i, 8), 2).toString(16).padStart(2, '0');",
                   "const counterHex = Math.floor(Date.now() / 30000).toString(16).padStart(16, '0');",
-                  "const hmac = CryptoJS.HmacSHA1(CryptoJS.enc.Hex.parse(counterHex), CryptoJS.enc.Hex.parse(keyHex)).toString(CryptoJS.enc.Hex);",
+                  "const hmac = hmacLib.HmacSHA1(hmacLib.enc.Hex.parse(counterHex), hmacLib.enc.Hex.parse(keyHex)).toString(hmacLib.enc.Hex);",
                   "const offset = parseInt(hmac.slice(-1), 16);",
                   "const code = (parseInt(hmac.substr(offset * 2, 8), 16) & 0x7fffffff) % 1000000;",
                   "pm.collectionVariables.set('totp', String(code).padStart(6, '0'));"

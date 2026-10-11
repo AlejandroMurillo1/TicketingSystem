@@ -89,13 +89,52 @@ docker compose exec db psql -U postgres -c 'CREATE DATABASE cinema_e2e'
 DB_DATABASE=cinema_e2e JWT_SECRET=dev pnpm test:e2e
 ```
 
-## Postman
+## Production (Cloudflare Containers)
 
-Import `postman/CineReserva.postman_collection.json` (and optionally `postman/local.postman_environment.json`). Run the folders in order or use the Collection Runner: test scripts store tokens and ids in collection variables, and the 2FA folder computes TOTP codes on its own.
+- API: https://cinereserva-api.valance.workers.dev/api
+- Swagger: https://cinereserva-api.valance.workers.dev/api
+- Health: https://cinereserva-api.valance.workers.dev/api/health
+
+The same `Dockerfile` runs as a Cloudflare Container behind a Worker (`deploy/cloudflare`). A single named Durable Object instance serves every request, so the seat hold cron runs once. Postgres lives on Neon because containers have no persistent disk. The container sleeps after 15 minutes without traffic, so the first request after that takes a few seconds.
+
+Deploy (needs Docker running and `wrangler login` on the Valance account):
 
 ```bash
-npx newman run postman/CineReserva.postman_collection.json --env-var baseUrl=http://localhost:3000/api
+cd deploy/cloudflare
+npm install
+npx wrangler secret put DATABASE_URL   # Neon connection string
+npx wrangler secret put JWT_SECRET
+npm run deploy
 ```
+
+Seed the production database from your machine with the built image:
+
+```bash
+docker build -t cinereserva-api .
+docker run --rm -e DATABASE_URL='<neon url>' -e DB_SSL=true \
+  -e SEED_ADMIN_PASSWORD=... -e SEED_COUNTER_PASSWORD=... -e SEED_CUSTOMER_PASSWORD=... \
+  cinereserva-api node dist/seed/seed.js
+```
+
+Production demo accounts use non-default passwords that are not stored in this public repo. Ask the team for them.
+
+## Postman
+
+Import `postman/CineReserva.postman_collection.json` and one environment:
+
+| Environment | File | Base URL |
+|-------------|------|----------|
+| Local | `postman/local.postman_environment.json` | http://localhost:3000/api |
+| Prod | `postman/prod.postman_environment.json` | https://cinereserva-api.valance.workers.dev/api |
+
+The prod environment ships with empty `adminPassword` and `counterPassword`; fill them in Postman. Keep a filled copy as `postman/*.local.postman_environment.json`, which git ignores. Run the folders in order or use the Collection Runner: test scripts store tokens and ids in collection variables, and the 2FA folder computes TOTP codes on its own.
+
+```bash
+npx newman run postman/CineReserva.postman_collection.json -e postman/local.postman_environment.json
+npx newman run postman/CineReserva.postman_collection.json -e postman/prod.local.postman_environment.json
+```
+
+To change requests, edit `postman/generate_collection.py` and run `python3 postman/generate_collection.py postman`.
 
 ## CI
 

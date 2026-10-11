@@ -1,0 +1,17 @@
+{
+  "name": "cinereserva-cloudflare",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "check": "tsc --noEmit && wrangler deploy --dry-run",
+    "cf-typegen": "wrangler types",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261011.1",
+    "typescript": "5.9.3",
+    "wrangler": "4.149.0"
+  }
+}
