@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsArray, IsNotEmpty, IsUUID, ArrayNotEmpty } from 'class-validator';
+import { ApiHideProperty, ApiProperty } from '@nestjs/swagger';
+import { IsArray, IsNotEmpty, IsOptional, IsUUID, ArrayNotEmpty } from 'class-validator';
 
 export class CreateSeatHoldDto {
   @ApiProperty({ description: 'ID de la función (Showtime)', format: 'uuid' })
@@ -13,10 +13,9 @@ export class CreateSeatHoldDto {
   @IsUUID('all', { each: true })
   seatIds: string[];
 
-  // NOTA: El userId normalmente vendrá del token JWT en el req.user,
-  // pero como no hay Auth todavía, lo pasaremos explícitamente por ahora.
-  @ApiProperty({ description: 'ID del usuario (temporal por falta de Auth)', format: 'uuid' })
+  // Always overwritten by the controller with the id from the JWT, so clients cannot act for someone else.
+  @ApiHideProperty()
+  @IsOptional()
   @IsUUID()
-  @IsNotEmpty()
   userId: string;
 }

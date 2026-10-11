@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import { Reservation, ReservationStatus } from './entities/reservation.entity';
 import { CreateReservationDto } from './dtos/create-reservation.dto';
 import { User } from '../users/entities/user.entity';
@@ -82,7 +82,7 @@ export class ReservationsService {
         await queryRunner.manager.save(SeatHold, hold);
 
         const ticket = queryRunner.manager.create(Ticket, {
-          code: uuidv4(),
+          code: randomUUID(),
           reservation: savedReservation,
           seat: hold.seat,
         });

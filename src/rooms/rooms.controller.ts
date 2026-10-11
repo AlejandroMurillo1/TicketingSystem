@@ -14,6 +14,8 @@ import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { RoomsService } from './rooms.service';
 import { CreateRoomDto } from './dtos/create-room.dto';
 import { UpdateRoomDto } from './dtos/update-room.dto';
+import { Auth } from '../common/decorators';
+import { ValidRoles } from '../common/enums/valid-roles.enum';
 
 @ApiTags('rooms')
 @Controller('rooms')
@@ -21,6 +23,7 @@ export class RoomsController {
   constructor(private readonly roomsService: RoomsService) {}
 
   @Post()
+  @Auth(ValidRoles.ADMIN)
   @ApiOperation({ summary: 'Crear sala con generación automática de asientos' })
   @ApiResponse({ status: 201, description: 'Sala creada correctamente' })
   @ApiResponse({ status: 409, description: 'Ya existe una sala con ese nombre' })
@@ -43,6 +46,7 @@ export class RoomsController {
   }
 
   @Patch(':id')
+  @Auth(ValidRoles.ADMIN)
   @ApiOperation({ summary: 'Actualizar sala (regenera asientos si cambia layout)' })
   @ApiParam({ name: 'id', type: String })
   update(
@@ -53,6 +57,7 @@ export class RoomsController {
   }
 
   @Delete(':id')
+  @Auth(ValidRoles.ADMIN)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Eliminar sala' })
   @ApiParam({ name: 'id', type: String })

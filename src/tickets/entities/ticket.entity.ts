@@ -34,6 +34,10 @@ export class Ticket {
   @Column({ type: 'enum', enum: TicketStatus, default: TicketStatus.VALID })
   status: TicketStatus;
 
+  /** Set by the counter on check-in; reported back if someone tries to reuse the ticket. */
+  @Column({ type: 'timestamptz', nullable: true })
+  usedAt: Date | null;
+
   @CreateDateColumn()
   createdAt: Date;
 }

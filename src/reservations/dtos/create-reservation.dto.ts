@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsArray, IsNotEmpty, IsUUID, ArrayNotEmpty } from 'class-validator';
+import { ApiHideProperty, ApiProperty } from '@nestjs/swagger';
+import { IsArray, IsNotEmpty, IsOptional, IsUUID, ArrayNotEmpty } from 'class-validator';
 
 export class CreateReservationDto {
   @ApiProperty({ description: 'ID de la función', format: 'uuid' })
@@ -13,8 +13,9 @@ export class CreateReservationDto {
   @IsUUID('all', { each: true })
   seatHoldIds: string[];
 
-  @ApiProperty({ description: 'ID del usuario', format: 'uuid' })
+  // Always overwritten by the controller with the id from the JWT, so clients cannot act for someone else.
+  @ApiHideProperty()
+  @IsOptional()
   @IsUUID()
-  @IsNotEmpty()
   userId: string;
 }

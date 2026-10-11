@@ -1,6 +1,9 @@
-import { Controller, Get, Param, ParseUUIDPipe } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { TicketsService } from './tickets.service';
+import { ValidateTicketDto } from './dtos/validate-ticket.dto';
+import { Auth } from '../common/decorators';
+import { ValidRoles } from '../common/enums/valid-roles.enum';
 
 @ApiTags('tickets')
 @Controller('tickets')
@@ -8,14 +11,28 @@ export class TicketsController {
   constructor(private readonly ticketsService: TicketsService) {}
 
   @Get('reservation/:reservationId')
+  @Auth()
   @ApiOperation({ summary: 'Obtener todos los tickets de una reserva específica' })
   findByReservation(@Param('reservationId', ParseUUIDPipe) reservationId: string) {
     return this.ticketsService.findAllByReservation(reservationId);
   }
 
   @Get('code/:code')
-  @ApiOperation({ summary: 'Validar y obtener detalles de un ticket por su código único' })
+  @Auth(ValidRoles.COUNTER, ValidRoles.ADMIN)
+  @ApiOperation({ summary: 'Consultar detalles de un ticket por su código único' })
   findByCode(@Param('code', ParseUUIDPipe) code: string) {
     return this.ticketsService.getTicketDetails(code);
+  }
+
+  @Post('validate/:code')
+  @HttpCode(HttpStatus.OK)
+  @Auth(ValidRoles.COUNTER, ValidRoles.ADMIN)
+  @ApiOperation({ summary: 'Check-in en puerta: marca el ticket como USED (RF14)' })
+  @ApiResponse({ status: 200, description: 'Acceso permitido' })
+  @ApiResponse({ status: 400, description: 'Ticket anulado o de otra función' })
+  @ApiResponse({ status: 404, description: 'Ticket no existe' })
+  @ApiResponse({ status: 409, description: 'Ticket ya utilizado (incluye la hora del primer ingreso)' })
+  validate(@Param('code', ParseUUIDPipe) code: string, @Body() dto: ValidateTicketDto) {
+    return this.ticketsService.validateTicket(code, dto.showtimeId);
   }
 }

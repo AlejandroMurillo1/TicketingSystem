@@ -16,6 +16,8 @@ import { ShowtimesService } from './showtimes.service';
 import { CreateShowtimeDto } from './dtos/create-showtime.dto';
 import { UpdateShowtimeDto } from './dtos/update-showtime.dto';
 import { FilterShowtimeDto } from './dtos/filter-showtime.dto';
+import { Auth } from '../common/decorators';
+import { ValidRoles } from '../common/enums/valid-roles.enum';
 
 @ApiTags('showtimes')
 @Controller('showtimes')
@@ -23,6 +25,7 @@ export class ShowtimesController {
   constructor(private readonly showtimesService: ShowtimesService) {}
 
   @Post()
+  @Auth(ValidRoles.ADMIN)
   @ApiOperation({ summary: 'Crear función de cine' })
   @ApiResponse({ status: 201, description: 'Función creada' })
   @ApiResponse({ status: 404, description: 'Película o sala no encontrada' })
@@ -46,6 +49,7 @@ export class ShowtimesController {
   }
 
   @Patch(':id')
+  @Auth(ValidRoles.ADMIN)
   @ApiOperation({ summary: 'Actualizar función' })
   @ApiParam({ name: 'id', type: String })
   update(
@@ -56,6 +60,7 @@ export class ShowtimesController {
   }
 
   @Delete(':id')
+  @Auth(ValidRoles.ADMIN)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Eliminar función' })
   @ApiParam({ name: 'id', type: String })
