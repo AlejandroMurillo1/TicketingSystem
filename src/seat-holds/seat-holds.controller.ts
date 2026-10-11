@@ -1,5 +1,15 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Post,
+} from '@nestjs/common';
+import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { SeatHoldsService } from './seat-holds.service';
 import { Auth, GetUser } from '../common/decorators';
 import { ValidRoles } from '../common/enums/valid-roles.enum';
@@ -24,5 +34,18 @@ export class SeatHoldsController {
   @ApiOperation({ summary: 'Listar todos los bloqueos (Debug)' })
   findAll() {
     return this.seatHoldsService.findAll();
+  }
+
+  @Delete(':id')
+  @Auth(ValidRoles.CUSTOMER, ValidRoles.ADMIN)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Liberar voluntariamente un bloqueo de asiento activo' })
+  @ApiParam({ name: 'id', type: String, description: 'ID del SeatHold (UUID)' })
+  @ApiResponse({ status: 204, description: 'Bloqueo liberado exitosamente' })
+  @ApiResponse({ status: 400, description: 'El bloqueo no está activo' })
+  @ApiResponse({ status: 403, description: 'No tienes permiso para liberar este bloqueo' })
+  @ApiResponse({ status: 404, description: 'Bloqueo no encontrado' })
+  remove(@Param('id', ParseUUIDPipe) id: string, @GetUser('id') userId: string) {
+    return this.seatHoldsService.releaseHold(id, userId);
   }
 }

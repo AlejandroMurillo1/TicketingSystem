@@ -48,6 +48,18 @@ export class ShowtimesController {
     return this.showtimesService.findById(id);
   }
 
+  @Get(':id/seats')
+  @ApiOperation({ summary: 'Consultar mapa de asientos con disponibilidad en tiempo real' })
+  @ApiParam({ name: 'id', type: String, description: 'ID de la función (UUID)' })
+  @ApiResponse({ status: 200, description: 'Mapa de asientos con estado (AVAILABLE, HELD, OCCUPIED)' })
+  @ApiResponse({ status: 404, description: 'Función no encontrada' })
+  getSeatMap(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('userId') userId?: string,
+  ) {
+    return this.showtimesService.getSeatMap(id, userId);
+  }
+
   @Patch(':id')
   @Auth(ValidRoles.ADMIN)
   @ApiOperation({ summary: 'Actualizar función' })

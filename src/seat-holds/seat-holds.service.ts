@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -45,6 +46,12 @@ export class SeatHoldsService {
         relations: { room: true },
       });
       if (!showtime) throw new NotFoundException('Showtime not found');
+
+      if (new Date(showtime.startTime) <= new Date()) {
+        throw new BadRequestException(
+          'Cannot hold seats for a showtime that has already started or concluded',
+        );
+      }
 
       // 2. Buscar y Bloquear los asientos (Pessimistic Write lock)
       // Esto previene que otra transacción lea o modifique los mismos asientos simultáneamente
@@ -102,7 +109,12 @@ export class SeatHoldsService {
       });
     } catch (error) {
       await queryRunner.rollbackTransaction();
-      if (error instanceof NotFoundException || error instanceof BadRequestException || error instanceof ConflictException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException ||
+        error instanceof ConflictException ||
+        error instanceof ForbiddenException
+      ) {
         throw error;
       }
       this.logger.error('Error holding seats', error);
@@ -110,6 +122,31 @@ export class SeatHoldsService {
     } finally {
       await queryRunner.release();
     }
+  }
+
+  /**
+   * Libera voluntariamente un bloqueo de asiento activo antes de su expiración.
+   */
+  async releaseHold(id: string, userId: string): Promise<void> {
+    const hold = await this.seatHoldRepo.findOne({
+      where: { id },
+      relations: { user: true },
+    });
+
+    if (!hold) {
+      throw new NotFoundException(`SeatHold with id "${id}" not found`);
+    }
+
+    if (hold.user?.id !== userId) {
+      throw new ForbiddenException('You can only release your own seat holds');
+    }
+
+    if (hold.status !== SeatHoldStatus.ACTIVE) {
+      throw new BadRequestException(`Cannot release a seat hold with status "${hold.status}"`);
+    }
+
+    hold.status = SeatHoldStatus.EXPIRED;
+    await this.seatHoldRepo.save(hold);
   }
 
   /**
