@@ -1,7 +1,10 @@
-import {IsNotEmpty, IsString} from "class-validator";
+import {ApiProperty} from "@nestjs/swagger";
+import {IsNotEmpty, IsString, MaxLength} from "class-validator";
 
 export class CreateRole {
+    @ApiProperty({ example: 'counter' })
     @IsString()
     @IsNotEmpty()
+    @MaxLength(50)
     name: string;
 }

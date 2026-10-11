@@ -1,0 +1,14 @@
+node_modules
+dist
+coverage
+.git
+.github
+.idea
+.vscode
+.atl
+.env
+.env.*
+!.env.example
+*.md
+postman
+test

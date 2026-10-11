@@ -1,43 +1,50 @@
 import {
-    BeforeInsert,
-    BeforeUpdate,
-    Column,
-    CreateDateColumn,
-    Entity,
-    JoinTable,
-    ManyToMany,
-    PrimaryGeneratedColumn
-} from "typeorm";
-import {Role} from "../../roles/entities/role.entity";
-import {Exclude} from "class-transformer";
+  Column,
+  CreateDateColumn,
+  Entity,
+  JoinTable,
+  ManyToMany,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
+} from 'typeorm';
+import { Role } from '../../roles/entities/role.entity';
 
-@Entity('Users')
+@Entity('users')
 export class User {
-    @PrimaryGeneratedColumn('uuid')
-    id:string;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
-    @Column({ nullable: false, unique: true })
-    email: string;
+  @Column({ type: 'varchar', length: 150, unique: true })
+  email: string;
 
-    @Column( {nullable:false})
-    @Exclude()
-    password?:string;
+  @Column({ type: 'varchar', length: 150, default: '' })
+  fullName: string;
 
-    @Column({ nullable:false})
-    fullName:string;
+  // Never selected by default; load it explicitly with addSelect when checking credentials.
+  @Column({ type: 'varchar', select: false })
+  password?: string;
 
-    @CreateDateColumn()
-    createdAt:Date;
+  @Column({ type: 'boolean', default: true })
+  isActive: boolean;
 
-    @ManyToMany(() => Role, (role) => role.users)
-    @JoinTable({name: 'user_role'})
-    roles: Role[];
+  @Column({ type: 'boolean', default: false })
+  isTwoFactorEnabled: boolean;
 
-    @BeforeInsert()
-    @BeforeUpdate()
-    checkEmailBeforeChanges(){
-        this.email = this.email
-            .toLowerCase()
-            .trim();
-    }
+  // TOTP shared secret. Also hidden by default for the same reason as the password.
+  @Column({ type: 'varchar', nullable: true, select: false })
+  twoFactorSecret?: string | null;
+
+  @ManyToMany(() => Role, (role) => role.users, { eager: true })
+  @JoinTable({
+    name: 'user_roles',
+    joinColumn: { name: 'user_id', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'role_id', referencedColumnName: 'id' },
+  })
+  roles: Role[];
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt: Date;
+
+  @UpdateDateColumn({ type: 'timestamptz' })
+  updatedAt: Date;
 }

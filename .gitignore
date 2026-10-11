@@ -10,3 +10,9 @@ yarn-error.log*
 
 .vscode/*
 .idea
+/dist
+/coverage
+.env
+
+# Real prod credentials, never commit
+postman/*.local.postman_environment.json
