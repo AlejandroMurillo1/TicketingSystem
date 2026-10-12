@@ -1,12 +1,15 @@
 import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { authenticator } from 'otplib';
 import { toDataURL } from 'qrcode';
 import { UsersService } from '../users/users.service';
+import { TokenRevocationService } from './token-revocation.service';
 import { User } from '../users/entities/user.entity';
 import { RegisterUser } from '../users/dtos/register-user.dto';
 import { JwtPayload, TokenScope } from '../common/interfaces/jwt-payload.interface';
+import { AuthenticatedUser } from '../common/interfaces/authenticated-user.interface';
 import {
   AccessTokenResponse,
   LoginResponse,
@@ -21,6 +24,7 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly tokenRevocation: TokenRevocationService,
   ) {
     // Accept the previous and next 30s window to tolerate small clock drift.
     authenticator.options = { window: 1 };
@@ -105,6 +109,15 @@ export class AuthService {
     return { isTwoFactorEnabled: false };
   }
 
+  /** Revokes the access token of the current request; other sessions stay open. */
+  async logout(user: AuthenticatedUser): Promise<{ loggedOut: true }> {
+    if (!user.tokenId || !user.tokenExpiresAt) {
+      throw new BadRequestException('This token cannot be revoked, log in again to get a new one');
+    }
+    await this.tokenRevocation.revoke(user.tokenId, user.id, new Date(user.tokenExpiresAt * 1000));
+    return { loggedOut: true };
+  }
+
   private assertValidCode(code: string, secret: string) {
     if (!authenticator.verify({ token: code, secret })) {
       throw new UnauthorizedException('Invalid two-factor code');
@@ -118,8 +131,9 @@ export class AuthService {
       roles: (user.roles ?? []).map((r) => r.name),
       scope,
     };
+    const jwtid = randomUUID();
     return scope === '2fa'
-      ? this.jwtService.sign(payload, { expiresIn: AuthService.TWO_FACTOR_TOKEN_TTL })
-      : this.jwtService.sign(payload);
+      ? this.jwtService.sign(payload, { expiresIn: AuthService.TWO_FACTOR_TOKEN_TTL, jwtid })
+      : this.jwtService.sign(payload, { jwtid });
   }
 }

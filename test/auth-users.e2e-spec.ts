@@ -34,7 +34,9 @@ describe('Auth, users and roles (e2e)', () => {
     http = request(app.getHttpServer());
 
     const dataSource = app.get(DataSource);
-    await dataSource.query('TRUNCATE TABLE "user_roles", "users", "roles" RESTART IDENTITY CASCADE');
+    await dataSource.query(
+      'TRUNCATE TABLE "user_roles", "users", "roles", "revoked_tokens" RESTART IDENTITY CASCADE',
+    );
 
     const roleRepo = dataSource.getRepository(Role);
     const roles = await roleRepo.save(Object.values(ValidRoles).map((name) => roleRepo.create({ name })));
@@ -194,6 +196,30 @@ describe('Auth, users and roles (e2e)', () => {
       const created = await http.post('/api/roles').set(auth).send({ name: 'auditor' }).expect(201);
       await http.post('/api/roles').set(auth).send({ name: 'auditor' }).expect(409);
       await http.delete(`/api/roles/${created.body.id}`).set(auth).expect(204);
+    });
+  });
+
+  describe('logout', () => {
+    it('revokes only the token that logged out', async () => {
+      await http
+        .post('/api/auth/register')
+        .send({ email: 'bye@e2e.com', password: 'Bye12345', fullName: 'Bye' })
+        .expect(201);
+      const laptop = { Authorization: `Bearer ${(await login('bye@e2e.com', 'Bye12345')).accessToken}` };
+      const phone = { Authorization: `Bearer ${(await login('bye@e2e.com', 'Bye12345')).accessToken}` };
+
+      await http.post('/api/auth/logout').set(laptop).expect(200, { loggedOut: true });
+
+      const rejected = await http.get('/api/users/me').set(laptop).expect(401);
+      expect(rejected.body.message).toContain('revoked');
+      await http.post('/api/auth/logout').set(laptop).expect(401);
+
+      // The other session is untouched
+      await http.get('/api/users/me').set(phone).expect(200);
+    });
+
+    it('requires a token', async () => {
+      await http.post('/api/auth/logout').expect(401);
     });
   });
 

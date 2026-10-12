@@ -8,6 +8,7 @@ import { LocalAuthGuard } from '../common/guards/local-auth.guard';
 import { JwtTwoFactorGuard } from '../common/guards/jwt-two-factor.guard';
 import { Auth, GetUser } from '../common/decorators';
 import { User } from '../users/entities/user.entity';
+import { AuthenticatedUser } from '../common/interfaces/authenticated-user.interface';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -34,6 +35,17 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
   login(@GetUser() user: User) {
     return this.authService.login(user);
+  }
+
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  @Auth()
+  @ApiOperation({
+    summary: 'Log out: revoke the access token used in this request',
+    description: 'The token is rejected with 401 from now on. Tokens from other logins stay valid.',
+  })
+  logout(@GetUser() user: AuthenticatedUser) {
+    return this.authService.logout(user);
   }
 
   @Post('2fa/authenticate')

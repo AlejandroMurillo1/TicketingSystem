@@ -5,4 +5,9 @@ export interface JwtPayload {
   email: string;
   roles: string[];
   scope: TokenScope;
+  /** Token id, used to revoke a single token on logout. */
+  jti?: string;
+  /** Set by jsonwebtoken when signing. */
+  iat?: number;
+  exp?: number;
 }
