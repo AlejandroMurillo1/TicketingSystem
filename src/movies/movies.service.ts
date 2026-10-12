@@ -13,6 +13,7 @@ import {CreateMovie} from "./dtos/create-movie.dto";
 import {FindAllMovies} from "./dtos/movie-pagination.dto";
 import {PaginatedMovies} from "./interfaces/paginated-movies.interface";
 import {UpdateMovie} from "./dtos/update-movie.dto";
+import { isReferencedRowError } from "../common/utils/postgres-errors";
 
 @Injectable()
 export class MoviesService {
@@ -172,9 +173,8 @@ export class MoviesService {
                 throw new NotFoundException(`Movie with id: "${id}" not found`);
             }
 
-            // TODO: cuando exista la relación con Showtime, cargar `showtimes` y lanzar
-            // ConflictException con un mensaje claro si la película ya tiene funciones.
-            // Mientras tanto, la FK en base de datos lo rechaza (23503) y handleException lo traduce a 409.
+            // A movie with showtimes is blocked by the ON DELETE RESTRICT foreign key,
+            // and handleException turns that database error into a 409.
 
             await this.movieRepository.remove(movie);
         } catch (error) {
@@ -191,7 +191,7 @@ export class MoviesService {
         if (error.code === '23505') {
             throw new ConflictException(error.detail);
         }
-        if (error.code === '23503') {
+        if (isReferencedRowError(error)) {
             throw new ConflictException('Movie is referenced by other records and cannot be deleted');
         }
         throw new InternalServerErrorException('Unexpected error, check server logs');

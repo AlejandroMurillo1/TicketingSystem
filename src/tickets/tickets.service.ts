@@ -1,13 +1,16 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { Ticket, TicketStatus } from './entities/ticket.entity';
-import { ReservationStatus } from '../reservations/entities/reservation.entity';
+import { Reservation, ReservationStatus } from '../reservations/entities/reservation.entity';
+import { AuthenticatedUser } from '../common/interfaces/authenticated-user.interface';
+import { ValidRoles } from '../common/enums/valid-roles.enum';
 
 export interface TicketValidationResult {
   access: 'GRANTED';
@@ -25,7 +28,17 @@ export class TicketsService {
     private readonly dataSource: DataSource,
   ) {}
 
-  async findAllByReservation(reservationId: string): Promise<Ticket[]> {
+  /** Only the owner of the reservation or an admin can list its tickets. */
+  async findAllByReservation(reservationId: string, user: AuthenticatedUser): Promise<Ticket[]> {
+    const reservation = await this.dataSource.manager.findOne(Reservation, {
+      where: { id: reservationId },
+      relations: { user: true },
+    });
+    if (!reservation) throw new NotFoundException('Reservation not found');
+    if (reservation.user.id !== user.id && !user.roles.includes(ValidRoles.ADMIN)) {
+      throw new ForbiddenException('You can only see the tickets of your own reservations');
+    }
+
     return this.ticketRepo.find({
       where: { reservation: { id: reservationId } },
       relations: { seat: true },

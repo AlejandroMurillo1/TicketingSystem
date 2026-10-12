@@ -8,12 +8,14 @@ interface Env {
   DB_SYNCHRONIZE: string;
   JWT_EXPIRES_IN: string;
   TWO_FACTOR_ISSUER: string;
+  CF_VERSION_METADATA: WorkerVersionMetadata;
 }
 
 const PORT = 3000;
 // Keep the Nest process warm between requests; a cold start takes a few seconds.
 const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
 const READY_ATTEMPTS = 150;
+const IMAGE_VERSION_KEY = 'imageVersion';
 
 /**
  * Wraps the NestJS image. A single named instance serves every request, which keeps
@@ -48,6 +50,7 @@ export class ApiContainer extends DurableObject<Env> {
 
   private async startAndWaitForPort(): Promise<void> {
     const container = this.ctx.container!;
+    await this.replaceContainerFromOldDeploy();
     if (!container.running) {
       container.start({
         image: container.images.base,
@@ -64,6 +67,7 @@ export class ApiContainer extends DurableObject<Env> {
           TWO_FACTOR_ISSUER: this.env.TWO_FACTOR_ISSUER,
         },
       });
+      await this.ctx.storage.put(IMAGE_VERSION_KEY, this.env.CF_VERSION_METADATA.id);
     }
     this.observeExit();
     await container.setInactivityTimeout(INACTIVITY_TIMEOUT_MS);
@@ -83,6 +87,25 @@ export class ApiContainer extends DurableObject<Env> {
       await scheduler.wait(200);
     }
     throw new Error(`API container did not become ready on port ${PORT}`);
+  }
+
+  /**
+   * A deploy restarts the Durable Object but not a container that is still running, so
+   * without this the old image keeps serving until it goes idle. Stop it when it was
+   * started by a different Worker version.
+   */
+  private async replaceContainerFromOldDeploy(): Promise<void> {
+    const container = this.ctx.container!;
+    if (!container.running) return;
+
+    const startedBy = await this.ctx.storage.get<string>(IMAGE_VERSION_KEY);
+    if (startedBy === this.env.CF_VERSION_METADATA.id) return;
+
+    console.log(`Replacing container started by version ${startedBy ?? 'unknown'}`);
+    await container.destroy();
+    for (let attempt = 0; attempt < READY_ATTEMPTS && container.running; attempt++) {
+      await scheduler.wait(200);
+    }
   }
 
   private observeExit(): void {

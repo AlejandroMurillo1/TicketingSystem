@@ -22,6 +22,7 @@ import { Room } from '../rooms/entities/room.entity';
 import { CreateShowtimeDto } from './dtos/create-showtime.dto';
 import { UpdateShowtimeDto } from './dtos/update-showtime.dto';
 import { FilterShowtimeDto } from './dtos/filter-showtime.dto';
+import { isReferencedRowError } from '../common/utils/postgres-errors';
 
 @Injectable()
 export class ShowtimesService {
@@ -184,7 +185,7 @@ export class ShowtimesService {
     if (error instanceof HttpException) throw error;
     const err = error as any;
     if (err?.code === '23505') throw new ConflictException(err.detail);
-    if (err?.code === '23503')
+    if (isReferencedRowError(err))
       throw new ConflictException('Showtime is referenced by reservations and cannot be deleted');
     throw new InternalServerErrorException('Unexpected error, check server logs');
   }

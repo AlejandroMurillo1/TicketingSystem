@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { TicketsService } from './tickets.service';
 import { Ticket, TicketStatus } from './entities/ticket.entity';
@@ -39,13 +39,45 @@ describe('TicketsService', () => {
         { provide: getRepositoryToken(Ticket), useValue: { find: jest.fn(), findOne: jest.fn() } },
         {
           provide: DataSource,
-          useValue: { transaction: jest.fn((work: (m: typeof manager) => unknown) => work(manager)) },
+          useValue: {
+            transaction: jest.fn((work: (m: typeof manager) => unknown) => work(manager)),
+            manager,
+          },
         },
       ],
     }).compile();
 
     service = module.get(TicketsService);
     ticketRepo = module.get(getRepositoryToken(Ticket));
+  });
+
+  describe('findAllByReservation', () => {
+    const owner = { id: 'u-1', email: 'jane@test.com', roles: ['customer'] };
+
+    it('returns the tickets to the owner of the reservation', async () => {
+      manager.findOne.mockResolvedValue({ id: 'r-1', user: { id: 'u-1' } });
+      ticketRepo.find.mockResolvedValue([ticketMock()]);
+      await expect(service.findAllByReservation('r-1', owner)).resolves.toHaveLength(1);
+    });
+
+    it('lets an admin read any reservation', async () => {
+      manager.findOne.mockResolvedValue({ id: 'r-1', user: { id: 'someone-else' } });
+      ticketRepo.find.mockResolvedValue([]);
+      await expect(
+        service.findAllByReservation('r-1', { id: 'a-1', email: 'admin@test.com', roles: ['admin'] }),
+      ).resolves.toEqual([]);
+    });
+
+    it('forbids another customer', async () => {
+      manager.findOne.mockResolvedValue({ id: 'r-1', user: { id: 'someone-else' } });
+      await expect(service.findAllByReservation('r-1', owner)).rejects.toBeInstanceOf(ForbiddenException);
+      expect(ticketRepo.find).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFound for an unknown reservation', async () => {
+      manager.findOne.mockResolvedValue(null);
+      await expect(service.findAllByReservation('nope', owner)).rejects.toBeInstanceOf(NotFoundException);
+    });
   });
 
   describe('getTicketDetails', () => {
