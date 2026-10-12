@@ -5,6 +5,7 @@ import { JwtTwoFactorStrategy } from './jwt-two-factor.strategy';
 import { LocalStrategy } from './local.strategy';
 import { AuthService } from '../auth.service';
 import { UsersService } from '../../users/users.service';
+import { TokenRevocationService } from '../token-revocation.service';
 import { JwtPayload } from '../../common/interfaces/jwt-payload.interface';
 
 const config = { getOrThrow: jest.fn().mockReturnValue('test-secret') } as unknown as ConfigService;
@@ -19,9 +20,17 @@ const payload = (overrides: Partial<JwtPayload> = {}): JwtPayload => ({
 
 describe('JwtStrategy', () => {
   const usersService = { findById: jest.fn() };
-  const strategy = new JwtStrategy(config, usersService as unknown as UsersService);
+  const tokenRevocation = { isRevoked: jest.fn() };
+  const strategy = new JwtStrategy(
+    config,
+    usersService as unknown as UsersService,
+    tokenRevocation as unknown as TokenRevocationService,
+  );
 
-  beforeEach(() => usersService.findById.mockReset());
+  beforeEach(() => {
+    usersService.findById.mockReset();
+    tokenRevocation.isRevoked.mockReset().mockResolvedValue(false);
+  });
 
   it('returns the current roles from the database, not the ones in the token', async () => {
     usersService.findById.mockResolvedValue({
@@ -41,6 +50,21 @@ describe('JwtStrategy', () => {
   it('rejects a token that is still waiting for the second factor', async () => {
     await expect(strategy.validate(payload({ scope: '2fa' }))).rejects.toBeInstanceOf(UnauthorizedException);
     expect(usersService.findById).not.toHaveBeenCalled();
+  });
+
+  it('rejects a token closed with logout', async () => {
+    tokenRevocation.isRevoked.mockResolvedValue(true);
+    await expect(strategy.validate(payload({ jti: 'jti-1' }))).rejects.toThrow('revoked');
+    expect(tokenRevocation.isRevoked).toHaveBeenCalledWith('jti-1');
+    expect(usersService.findById).not.toHaveBeenCalled();
+  });
+
+  it('passes the token id and expiry on, so logout can revoke it', async () => {
+    usersService.findById.mockResolvedValue({ id: 'u-1', email: 'jane@test.com', isActive: true, roles: [] });
+    await expect(strategy.validate(payload({ jti: 'jti-1', exp: 1_800_000_000 }))).resolves.toMatchObject({
+      tokenId: 'jti-1',
+      tokenExpiresAt: 1_800_000_000,
+    });
   });
 
   it('rejects a deleted user', async () => {

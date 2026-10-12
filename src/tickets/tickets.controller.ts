@@ -2,7 +2,8 @@ import { Body, Controller, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Post
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { TicketsService } from './tickets.service';
 import { ValidateTicketDto } from './dtos/validate-ticket.dto';
-import { Auth } from '../common/decorators';
+import { Auth, GetUser } from '../common/decorators';
+import { AuthenticatedUser } from '../common/interfaces/authenticated-user.interface';
 import { ValidRoles } from '../common/enums/valid-roles.enum';
 
 @ApiTags('tickets')
@@ -12,9 +13,13 @@ export class TicketsController {
 
   @Get('reservation/:reservationId')
   @Auth()
-  @ApiOperation({ summary: 'Obtener todos los tickets de una reserva específica' })
-  findByReservation(@Param('reservationId', ParseUUIDPipe) reservationId: string) {
-    return this.ticketsService.findAllByReservation(reservationId);
+  @ApiOperation({ summary: 'Tickets of a reservation (owner or admin only)' })
+  @ApiResponse({ status: 403, description: 'The reservation belongs to another user' })
+  findByReservation(
+    @Param('reservationId', ParseUUIDPipe) reservationId: string,
+    @GetUser() user: AuthenticatedUser,
+  ) {
+    return this.ticketsService.findAllByReservation(reservationId, user);
   }
 
   @Get('code/:code')

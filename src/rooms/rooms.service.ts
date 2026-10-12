@@ -12,6 +12,7 @@ import { Room } from './entities/room.entity';
 import { Seat, SeatType } from './entities/seat.entity';
 import { CreateRoomDto, SeatLayoutDto } from './dtos/create-room.dto';
 import { UpdateRoomDto } from './dtos/update-room.dto';
+import { isReferencedRowError } from '../common/utils/postgres-errors';
 
 @Injectable()
 export class RoomsService {
@@ -217,7 +218,7 @@ export class RoomsService {
     if (error instanceof HttpException) throw error;
     const err = error as any;
     if (err?.code === '23505') throw new ConflictException(err.detail);
-    if (err?.code === '23503')
+    if (isReferencedRowError(err))
       throw new ConflictException('Room is referenced by other records and cannot be deleted');
     throw new InternalServerErrorException('Unexpected error, check server logs');
   }

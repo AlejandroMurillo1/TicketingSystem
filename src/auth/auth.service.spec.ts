@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import { authenticator } from 'otplib';
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
+import { TokenRevocationService } from './token-revocation.service';
 import { User } from '../users/entities/user.entity';
 
 const userMock = (overrides: Partial<User> = {}): User =>
@@ -24,6 +25,7 @@ describe('AuthService', () => {
   let service: AuthService;
   let usersService: Record<string, jest.Mock>;
   let jwtService: { sign: jest.Mock };
+  let tokenRevocation: { revoke: jest.Mock };
 
   beforeEach(async () => {
     usersService = {
@@ -35,6 +37,7 @@ describe('AuthService', () => {
       setTwoFactorEnabled: jest.fn(),
     };
     jwtService = { sign: jest.fn().mockReturnValue('signed.jwt') };
+    tokenRevocation = { revoke: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -42,6 +45,7 @@ describe('AuthService', () => {
         { provide: UsersService, useValue: usersService },
         { provide: JwtService, useValue: jwtService },
         { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue(undefined) } },
+        { provide: TokenRevocationService, useValue: tokenRevocation },
       ],
     }).compile();
 
@@ -84,12 +88,10 @@ describe('AuthService', () => {
       const result = await service.register({ email: 'jane@test.com', password: 'Secret123', fullName: 'Jane' });
 
       expect(result.accessToken).toBe('signed.jwt');
-      expect(jwtService.sign).toHaveBeenCalledWith({
-        sub: 'u-1',
-        email: 'jane@test.com',
-        roles: ['customer'],
-        scope: 'access',
-      });
+      expect(jwtService.sign).toHaveBeenCalledWith(
+        { sub: 'u-1', email: 'jane@test.com', roles: ['customer'], scope: 'access' },
+        { jwtid: expect.any(String) },
+      );
     });
   });
 
@@ -105,7 +107,33 @@ describe('AuthService', () => {
       expect(result).toEqual({ requiresTwoFactor: true, tempToken: 'signed.jwt' });
       expect(jwtService.sign).toHaveBeenCalledWith(expect.objectContaining({ scope: '2fa' }), {
         expiresIn: AuthService.TWO_FACTOR_TOKEN_TTL,
+        jwtid: expect.any(String),
       });
+    });
+
+    it('gives every token its own id so it can be revoked alone', () => {
+      service.login(userMock());
+      service.login(userMock());
+
+      const [first, second] = jwtService.sign.mock.calls.map(([, options]) => options.jwtid);
+      expect(first).toEqual(expect.any(String));
+      expect(first).not.toEqual(second);
+    });
+  });
+
+  describe('logout', () => {
+    const user = { id: 'u-1', email: 'jane@test.com', roles: ['customer'] };
+
+    it('revokes the current token until it would have expired', async () => {
+      await expect(service.logout({ ...user, tokenId: 'jti-1', tokenExpiresAt: 1_800_000_000 })).resolves.toEqual({
+        loggedOut: true,
+      });
+      expect(tokenRevocation.revoke).toHaveBeenCalledWith('jti-1', 'u-1', new Date(1_800_000_000_000));
+    });
+
+    it('refuses a token without an id (issued before logout existed)', async () => {
+      await expect(service.logout(user)).rejects.toBeInstanceOf(BadRequestException);
+      expect(tokenRevocation.revoke).not.toHaveBeenCalled();
     });
   });
 
