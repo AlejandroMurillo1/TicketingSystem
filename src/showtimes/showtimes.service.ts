@@ -12,6 +12,7 @@ import {
   Between,
   DataSource,
   FindOptionsWhere,
+  In,
   MoreThanOrEqual,
   LessThanOrEqual,
   Repository,
@@ -19,9 +20,15 @@ import {
 import { Showtime } from './entities/showtime.entity';
 import { Movie } from '../movies/entities/movie.entity';
 import { Room } from '../rooms/entities/room.entity';
+import { SeatHold, SeatHoldStatus } from '../seat-holds/entities/seat-hold.entity';
 import { CreateShowtimeDto } from './dtos/create-showtime.dto';
 import { UpdateShowtimeDto } from './dtos/update-showtime.dto';
 import { FilterShowtimeDto } from './dtos/filter-showtime.dto';
+import {
+  SeatAvailabilityStatus,
+  ShowtimeSeatDto,
+  ShowtimeSeatMapDto,
+} from './dtos/showtime-seat-map.dto';
 
 @Injectable()
 export class ShowtimesService {
@@ -30,6 +37,8 @@ export class ShowtimesService {
   constructor(
     @InjectRepository(Showtime)
     private readonly showtimeRepository: Repository<Showtime>,
+    @InjectRepository(SeatHold)
+    private readonly seatHoldRepository: Repository<SeatHold>,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -71,9 +80,9 @@ export class ShowtimesService {
       const saved = await queryRunner.manager.save(Showtime, showtime);
       await queryRunner.commitTransaction();
 
-      return this.showtimeRepository.findOne({
-        where: { id: saved.id },
-        relations: { movie: true, room: true },
+      return await this.showtimeRepository.findOne({
+        where: {id: saved.id},
+        relations: {movie: true, room: true},
       }) as unknown as Promise<Showtime>;
     } catch (error) {
       await queryRunner.rollbackTransaction();
@@ -124,6 +133,108 @@ export class ShowtimesService {
     }
   }
 
+  // ── GET SEAT MAP (with live availability) ───────────────────
+
+  async getSeatMap(
+    showtimeId: string,
+    currentUserId?: string,
+  ): Promise<ShowtimeSeatMapDto> {
+    try {
+      const showtime = await this.showtimeRepository.findOne({
+        where: { id: showtimeId },
+        relations: { movie: true, room: { seats: true } },
+      });
+      if (!showtime) {
+        throw new NotFoundException(`Showtime with id "${showtimeId}" not found`);
+      }
+
+      // Buscar todos los holds activos o confirmados para esta función
+      const holds = await this.seatHoldRepository.find({
+        where: {
+          showtime: { id: showtime.id },
+          status: In([SeatHoldStatus.ACTIVE, SeatHoldStatus.CONFIRMED]),
+        },
+        relations: { seat: true, user: true },
+      });
+
+      const now = new Date();
+      // Mapear el hold más relevante por seat.id
+      const holdMap = new Map<string, SeatHold>();
+      for (const hold of holds) {
+        if (hold.status === SeatHoldStatus.CONFIRMED) {
+          holdMap.set(hold.seat.id, hold);
+        } else if (hold.status === SeatHoldStatus.ACTIVE && hold.expiresAt > now) {
+          holdMap.set(hold.seat.id, hold);
+        }
+      }
+
+      // Ordenar asientos por fila ASC y columna ASC
+      const sortedSeats = (showtime.room.seats || []).slice().sort((a, b) => {
+        if (a.row !== b.row) return a.row - b.row;
+        return a.column - b.column;
+      });
+
+      let availableCount = 0;
+      let heldCount = 0;
+      let occupiedCount = 0;
+
+      const seatsDto: ShowtimeSeatDto[] = sortedSeats.map((seat) => {
+        const hold = holdMap.get(seat.id);
+        let status = SeatAvailabilityStatus.AVAILABLE;
+        let isHeldByMe: boolean | undefined = undefined;
+        let holdExpiresAt: Date | undefined = undefined;
+        let holdId: string | undefined = undefined;
+
+        if (hold) {
+          if (hold.status === SeatHoldStatus.CONFIRMED) {
+            status = SeatAvailabilityStatus.OCCUPIED;
+            occupiedCount++;
+          } else {
+            status = SeatAvailabilityStatus.HELD;
+            heldCount++;
+            holdExpiresAt = hold.expiresAt;
+            holdId = hold.id;
+            if (currentUserId && hold.user?.id === currentUserId) {
+              isHeldByMe = true;
+            } else if (currentUserId) {
+              isHeldByMe = false;
+            }
+          }
+        } else {
+          availableCount++;
+        }
+
+        return {
+          id: seat.id,
+          row: seat.row,
+          column: seat.column,
+          type: seat.type,
+          status,
+          ...(isHeldByMe !== undefined && { isHeldByMe }),
+          ...(holdExpiresAt && { holdExpiresAt }),
+          ...(holdId && { holdId }),
+        };
+      });
+
+      return {
+        showtimeId: showtime.id,
+        movieId: showtime.movie.id,
+        movieTitle: showtime.movie.title,
+        roomId: showtime.room.id,
+        roomName: showtime.room.name,
+        startTime: showtime.startTime,
+        price: Number(showtime.price),
+        totalSeats: sortedSeats.length,
+        availableSeats: availableCount,
+        heldSeats: heldCount,
+        occupiedSeats: occupiedCount,
+        seats: seatsDto,
+      };
+    } catch (error) {
+      this.handleException(error);
+    }
+  }
+
   // ── UPDATE ──────────────────────────────────────────────────
 
   async update(id: string, dto: UpdateShowtimeDto): Promise<Showtime> {
@@ -153,9 +264,9 @@ export class ShowtimesService {
       const updated = await queryRunner.manager.save(Showtime, showtime);
       await queryRunner.commitTransaction();
 
-      return this.showtimeRepository.findOne({
-        where: { id: updated.id },
-        relations: { movie: true, room: true },
+      return await this.showtimeRepository.findOne({
+        where: {id: updated.id},
+        relations: {movie: true, room: true},
       }) as unknown as Promise<Showtime>;
     } catch (error) {
       await queryRunner.rollbackTransaction();

@@ -11,6 +11,9 @@ import { ShowtimesService } from './showtimes.service';
 import { Showtime } from './entities/showtime.entity';
 import { Movie } from '../movies/entities/movie.entity';
 import { Room } from '../rooms/entities/room.entity';
+import { Seat, SeatType } from '../rooms/entities/seat.entity';
+import { SeatHold, SeatHoldStatus } from '../seat-holds/entities/seat-hold.entity';
+import { SeatAvailabilityStatus } from './dtos/showtime-seat-map.dto';
 
 // ─── Mock factories ───────────────────────────────────────────
 const createRepoMock = () => ({
@@ -66,11 +69,13 @@ const buildDbError = (code: string, detail = 'db detail') =>
 describe('ShowtimesService', () => {
   let service: ShowtimesService;
   let showtimeRepo: ReturnType<typeof createRepoMock>;
+  let seatHoldRepo: ReturnType<typeof createRepoMock>;
   let qr: ReturnType<typeof createQRMock>;
   let dataSource: { createQueryRunner: jest.Mock };
 
   beforeEach(async () => {
     showtimeRepo = createRepoMock();
+    seatHoldRepo = createRepoMock();
     qr = createQRMock();
     dataSource = { createQueryRunner: jest.fn().mockReturnValue(qr) };
 
@@ -80,6 +85,7 @@ describe('ShowtimesService', () => {
       providers: [
         ShowtimesService,
         { provide: getRepositoryToken(Showtime), useValue: showtimeRepo },
+        { provide: getRepositoryToken(SeatHold), useValue: seatHoldRepo },
         { provide: DataSource, useValue: dataSource },
       ],
     }).compile();
