@@ -4,6 +4,8 @@ A NestJS-based application that manages concurrent ticketing within theaters: mo
 
 Stack: NestJS 11, TypeScript, TypeORM, PostgreSQL, Passport (local + JWT + TOTP 2FA), Swagger, Jest, Docker.
 
+Presenting or reviewing the project? Start with [docs/PRESENTATION_GUIDE.md](docs/PRESENTATION_GUIDE.md): demo script, how 2FA works, and where every feature lives in the code.
+
 ## Quick start with Docker
 
 ```bash
@@ -46,6 +48,7 @@ Override them with `SEED_ADMIN_PASSWORD`, `SEED_COUNTER_PASSWORD` and `SEED_CUST
   2. `POST /api/auth/2fa/enable` with `{ code }` turns it on.
   3. On login, send the `tempToken` as Bearer to `POST /api/auth/2fa/authenticate` with `{ code }`.
   4. `POST /api/auth/2fa/disable` with `{ code }` turns it off.
+- `POST /api/auth/logout` revokes the token used in the request (its `jti` goes to the `revoked_tokens` table until it expires). Other sessions stay open.
 - Send the token as `Authorization: Bearer <accessToken>`.
 
 Roles are `admin`, `counter` and `customer`. Endpoints are protected with the `@Auth(...roles)` decorator, which applies `JwtAuthGuard` + `RolesGuard` + `@Roles()`. Roles are re-read from the database on every request, so a role change or a deactivated account takes effect without a new login. `@GetUser()` injects the authenticated user and `@Public()` opts a route out of the JWT check.
@@ -127,7 +130,7 @@ Import `postman/CineReserva.postman_collection.json` and one environment:
 | Local | `postman/local.postman_environment.json` | http://localhost:3000/api |
 | Prod | `postman/prod.postman_environment.json` | https://cinereserva-api.valance.workers.dev/api |
 
-The prod environment ships with empty `adminPassword` and `counterPassword`; fill them in Postman. Keep a filled copy as `postman/*.local.postman_environment.json`, which git ignores. Run the folders in order or use the Collection Runner: test scripts store tokens and ids in collection variables, and the 2FA folder computes TOTP codes on its own.
+The prod environment ships with empty `adminPassword` and `counterPassword`; fill them in Postman. Keep a filled copy as `postman/*.local.postman_environment.json`, which git ignores. Run the folders in order or use the Collection Runner: test scripts store tokens and ids in collection variables, and the 2FA folder computes TOTP codes on its own. The collection has 95 requests and 182 assertions, and every request description lists the source files that implement it.
 
 ```bash
 npx newman run postman/CineReserva.postman_collection.json -e postman/local.postman_environment.json
